@@ -1,12 +1,24 @@
 import asyncio
+import uuid
 from typing import Coroutine
 
-from fastapi import FastAPI, WebSocket
+from fastapi import (
+    Cookie,
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    WebSocket,
+    status
+)
+
 from fastapi.websockets import WebSocketState
 
 from game import Player, Territory, game_update
 
 app = FastAPI()
+
+current_users: dict[str: Player] = {}
 
 
 class Message:
@@ -15,11 +27,21 @@ class Message:
         self.data = data
 
 
+primary_queue: dict[uuid.UUID: list[Message]] = {}
+
+
 class WebSocketHandler:
     def __init__(self, websocket: WebSocket):
         self.ws: WebSocket = websocket
         self.message_queue: list[Message] = []
         self.task_queue: list[Coroutine] = []
+
+
+def add_to_primary_queue(player_uuid: uuid.UUID, message: Message):
+    if primary_queue.get(player_uuid):
+        primary_queue[player_uuid].append(message)
+    else:
+        primary_queue[player_uuid] = [message]
 
 
 async def send_chat(handler: WebSocketHandler, chat) -> None:
@@ -31,6 +53,7 @@ async def send_player_update(ws_handler: WebSocketHandler, player: Player):
         {
             "message": {
                 "player": {
+                    "uuid": str(player.player_id),
                     "money": player.money,
                     "army": player.army,
                     "workers": player.workers
@@ -43,13 +66,31 @@ async def send_player_update(ws_handler: WebSocketHandler, player: Player):
     )
 
 
+@app.post("/buy_territory")
+async def buy_territory(territory_x: int, territory_y: int, player_uuid: uuid.UUID = Header()):
+    ...
+
+
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket, token: str | None = Cookie(default=None)):
     """Handles all game logic including client inputs and server updates."""
     ws_handler = WebSocketHandler(websocket)
     await ws_handler.ws.accept()
 
-    player = Player(territories=[Territory(1, 1)])
+    # Check if the user sent a player token
+    if token is None:
+        player_uuid = uuid.uuid4()
+        player = Player(player_id=player_uuid, territories=[Territory(1, 1)])
+        current_users[str(player_uuid)] = player
+    # If the user sent a player token, attempt to retrieve the player data
+    else:
+        if current_users.get(token):
+            player = current_users[token]
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"player with UUID {token} does not exist."
+            )
 
     # Send player data immediately to avoid delay from game update wait time
     await send_player_update(ws_handler, player)

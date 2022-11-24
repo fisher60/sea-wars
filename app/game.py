@@ -1,4 +1,5 @@
 import asyncio
+from uuid import UUID
 
 from settings import GAME_TICK_RATE
 
@@ -12,12 +13,14 @@ class Territory:
 class Player:
     def __init__(
             self,
+            player_id: UUID,
             territories: list[Territory],
             money: int = 1000,
             workers: int = 100,
             army: int = 20,
             tech_level: int = 1
     ):
+        self.player_id = player_id
         self.territories = territories
         self.money = money
         self.workers = workers

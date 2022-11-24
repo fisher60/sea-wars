@@ -1,5 +1,6 @@
 import { Component } from "react";
 import Banner from "./playerDataBanner";
+import Loading from "./loadingScrean";
 
 export default class Game extends Component {
     constructor(props) {
@@ -16,6 +17,8 @@ export default class Game extends Component {
     }
 
     timeout = 250; // Initial timeout duration 
+    currentReconnectAttempts = 0;
+    maxRecconnectAttempts = 10;
 
     /**
      * @function connect
@@ -36,20 +39,26 @@ export default class Game extends Component {
             // listen to data sent from the websocket server
             const message = JSON.parse(evt.data)
             this.setState({dataFromServer: message})
+            
+            if (document.cookie === ""){
+                document.cookie = `token=${this.state.dataFromServer.message.player.uuid}`
+            }
         };
 
         // websocket onclose event listener
         ws.onclose = e => {
-            console.log(
-                `Socket is closed. Reconnect will be attempted in ${Math.min(
-                    10000 / 1000,
-                    (that.timeout + that.timeout) / 1000
-                )} second.`,
-                e.reason
-            );
-
-            that.timeout = that.timeout + that.timeout; //increment retry interval
-            connectInterval = setTimeout(this.check, Math.min(10000, that.timeout)); //call check function after timeout
+            if (this.currentReconnectAttempts < this.maxRecconnectAttempts){
+                this.currentReconnectAttempts += 1;
+                console.log(
+                    `Socket is closed. Reconnect will be attempted in ${Math.min(
+                        10000 / 1000,
+                        (that.timeout + that.timeout) / 1000
+                    )} second.`,
+                    e.reason
+                );
+                that.timeout = that.timeout + that.timeout; //increment retry interval
+                connectInterval = setTimeout(this.check, Math.min(10000, that.timeout)); //call check function after timeout
+            }
         };
 
         // websocket onerror event listener
@@ -66,16 +75,28 @@ export default class Game extends Component {
 
     check = () => {
         const { ws } = this.state;
-        if (!ws || ws.readyState === WebSocket.CLOSED) this.connect(); //check if websocket instance is closed, if so call `connect` function.
+        if (!ws || ws.readyState === WebSocket.CLOSED){
+            this.connect(); //check if websocket instance is closed, if so call `connect` function.
+        } 
+        else{
+            this.currentReconnectAttempts = 0;
+        }
     };
 
     render() {
-        return (
-            <div>
-                <h1>Hello Fish</h1>
-                <Banner player={ this.state.dataFromServer ? this.state.dataFromServer.message.player : null } />
-                <p>Data: { this.state.dataFromServer ? JSON.stringify(this.state.dataFromServer) : "No data yet" }</p>
-            </div>
-        )
+        if (this.state.dataFromServer){
+            return (
+                <div>
+                    <h1 className="text-3xl font-bold underline">Hello Fish</h1>
+                    <Banner player={ this.state.dataFromServer.message.player } />
+                    <p>Data: { JSON.stringify(this.state.dataFromServer) }</p>
+                </div>
+            )
+        }
+        else {
+            return (
+                <Loading />
+            )
+        }
     }
 }

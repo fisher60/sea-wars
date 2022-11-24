@@ -4,12 +4,11 @@ export default class Banner extends Component {
 
     render() {
         return (
-            <div>
-                <h1>Player Banner</h1>
-                <div>
-                    <ul>
-                        <li>Money: {this.props.player ? this.props.player.money : "loading"}</li>
-                    </ul>
+            <div className="border-2 rounded border-slate-300">
+                <h1>Player: { this.props.player.uuid }</h1>
+                <div className="flex gap-2">
+                    <span>Money: { this.props.player.money }</span>
+                    <span>Money: { this.props.player.money }</span>
                 </div>
             </div>
         )

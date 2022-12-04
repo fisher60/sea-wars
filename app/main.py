@@ -11,10 +11,24 @@ from fastapi import (
     WebSocket,
     status
 )
-
 from fastapi.websockets import WebSocketState
+from sqlalchemy.orm import Session
 
 from game import Player, Territory, game_update
+
+from database import crud, models, schemas
+from database.database import engine, local_session
+
+models.sql_base.metadata.create_all(bind=engine)
+
+
+def get_db():
+    db = local_session()
+    try:
+        yield db
+    finally:
+        db.close()
+
 
 app = FastAPI()
 
@@ -64,6 +78,17 @@ async def send_player_update(ws_handler: WebSocketHandler, player: Player):
             }
         }
     )
+
+
+@app.post("/users/create", response_model=schemas.User)
+async def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    """Attempt to create a new user, returns 409 if user already exists."""
+    db_user = crud.get_user_by_username(db, username=user.username)
+
+    if db_user:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User with username already exists")
+
+    return crud.create_user(db=db, user=user)
 
 
 @app.post("/buy_territory")
